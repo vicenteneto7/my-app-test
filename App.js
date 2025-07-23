@@ -13,12 +13,11 @@ import { apiTCE } from "./src/services/api";
 export default function App() {
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [codeMunicipio, setCodeMunicipio] = useState(""); // Estado para armazenar o código do município
+  const [codeMunicipio, setCodeMunicipio] = useState("");
   const [error, setError] = useState(null);
 
   console.log(data, 'data')
 
-  // Função para fazer a requisição
   const fetchMunicipioData = () => {
     if (codeMunicipio) {
       setLoading(true);
@@ -35,7 +34,6 @@ export default function App() {
     }
   };
 
-  // Quando o código do município mudar, reexecuta a requisição (useEffect)
   useEffect(() => {
     if (codeMunicipio) {
       fetchMunicipioData();
