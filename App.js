@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { StatusBar } from "expo-status-bar";
 import {
   StyleSheet,
@@ -7,77 +7,173 @@ import {
   FlatList,
   TextInput,
   Button,
+  ScrollView,
 } from "react-native";
-import { apiTCE } from "./src/services/api";
+import {
+  getBalanceteDespesaExtraOrcamentaria,
+  getBalanceteDespesaExtraOrcamentariaAPIAntiga,
+} from "./http/get-balancete-despesa-extra-orcamentaria";
 
 export default function App() {
-  const [data, setData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [codeMunicipio, setCodeMunicipio] = useState("");
+  const [dataNovaAPI, setDataNovaAPI] = useState([]);
+  const [dataAntigaAPI, setDataAntigaAPI] = useState([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  console.log(data, 'data')
+  // Estados para cada campo necessário na requisição
+  const [codigoMunicipio, setCodigoMunicipio] = useState("");
+  const [exercicioOrcamento, setExercicioOrcamento] = useState("");
+  const [dataReferencia, setDataReferencia] = useState("");
+  const [codigoOrgao, setCodigoOrgao] = useState("");
+  const [codigoUnidade, setCodigoUnidade] = useState("");
+  const [codigoContaExtraorcamentaria, setCodigoContaExtraorcamentaria] = useState("");
 
-  const fetchMunicipioData = () => {
-    if (codeMunicipio) {
-      setLoading(true);
-      apiTCE
-        .get(`/municipios?codigo_municipio=${codeMunicipio}`)
-        .then(({data}) => {
-          console.warn(data);
+  // Função para buscar os dados das duas APIs e mostrar os resultados separadamente
+  const handleFetchData = async () => {
+    setLoading(true);
+    setError(null);
 
-          setData(data.data);
-        })
-        .catch((error) => {
-          console.log(`Erro ao buscar dados, erro: ${error}`);
-        });
+    const params = {
+      codigo_municipio: codigoMunicipio,
+      exercicio_orcamento: exercicioOrcamento,
+      data_referencia: dataReferencia,
+      codigo_orgao: codigoOrgao,
+      codigo_unidade: codigoUnidade,
+      codigo_conta_extraorcamentaria: codigoContaExtraorcamentaria,
+    };
+
+    try {
+      // Chama ambas as APIs separadamente
+      const [resultNovaAPI, resultAntigaAPI] = await Promise.all([
+        getBalanceteDespesaExtraOrcamentaria(params),
+        getBalanceteDespesaExtraOrcamentariaAPIAntiga(params),
+      ]);
+
+      console.log(resultNovaAPI, 'resultNovaAPI')
+
+      // Armazena os resultados das APIs separadamente
+      setDataNovaAPI(resultNovaAPI);
+      setDataAntigaAPI(resultAntigaAPI);
+    } catch (err) {
+      setError("Erro ao buscar dados.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (codeMunicipio) {
-      fetchMunicipioData();
-    }
-  }, [codeMunicipio]);
+  const dataNovaAPIFiltered = dataNovaAPI.filter((itemData) => itemData.codigo_orgao != '01');
+  const dataAntigaAPIFiltered = dataAntigaAPI.filter((itemData) => itemData.codigo_orgao != '01');
+
+  // Cálculo do total do valor_pago_no_mes para ambas as APIs
+
+
+  const totalPagoNoMesNovaAPI = dataNovaAPIFiltered.reduce(
+    (soma, item) => soma + Number(item.valor_pago_no_mes),
+    0
+  );
+
+  const totalPagoNoMesAntigaAPI = dataAntigaAPIFiltered.reduce((total, item) => {
+    return total + parseFloat(item.valor_pago_no_mes || 0);
+  }, 0);
+
+  // Cálculo do total anulado no mês para ambas as APIs
+
+
+  const totalAnuladoNoMesNovaAPI = dataNovaAPIFiltered.reduce(
+    (soma, item) => soma + Number(item.valor_anulacao_no_mes),
+    0
+  );
+
+  const totalAnuladoNoMesAntigaAPI = dataAntigaAPIFiltered.reduce((total, item) => {
+    return total + parseFloat(item.valor_anulacao_no_mes || 0);
+  }, 0);
+
+  console.log(totalPagoNoMesNovaAPI, 'Nova API');
+  console.log(totalPagoNoMesAntigaAPI, 'Antiga API');
 
   return (
-    <View style={styles.container}>
+    <ScrollView contentContainerStyle={styles.container}>
       <TextInput
         style={styles.input}
-        placeholder="Digite o código do município"
+        placeholder="Código Município"
         keyboardType="numeric"
-        value={codeMunicipio}
-        onChangeText={setCodeMunicipio}
+        value={codigoMunicipio}
+        onChangeText={setCodigoMunicipio}
       />
-      <Button title="Buscar Município" onPress={fetchMunicipioData} />
+      <TextInput
+        style={styles.input}
+        placeholder="Exercício Orçamento"
+        keyboardType="numeric"
+        value={exercicioOrcamento}
+        onChangeText={setExercicioOrcamento}
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Data Referência (YYYY-MM-DD)"
+        value={dataReferencia}
+        onChangeText={setDataReferencia}
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Código Órgão"
+        keyboardType="numeric"
+        value={codigoOrgao}
+        onChangeText={setCodigoOrgao}
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Código Unidade"
+        keyboardType="numeric"
+        value={codigoUnidade}
+        onChangeText={setCodigoUnidade}
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Código Conta Extraorçamentária"
+        keyboardType="numeric"
+        value={codigoContaExtraorcamentaria}
+        onChangeText={setCodigoContaExtraorcamentaria}
+      />
+
+      <Button title="Buscar Balancete" onPress={handleFetchData} />
 
       {error && <Text style={styles.error}>{error}</Text>}
 
-      {data.length === 0 ? (
-        <Text>Sem dados para exibir</Text>
+      {loading ? (
+        <Text>Carregando...</Text>
       ) : (
-        <FlatList
-          data={data}
-          keyExtractor={(item) => item.codigo_municipio.toString()}
-          renderItem={({ item }) => (
-            <View style={styles.item}>
-              <Text style={styles.title}>{item.nome_municipio}</Text>
-            </View>
-          )}
-        />
+        <>
+          <Text style={styles.total}>
+            Total Pago no Mês (Nova API): {(totalPagoNoMesNovaAPI - totalAnuladoNoMesNovaAPI).toLocaleString("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+            })}
+          </Text>
+
+
+          <Text style={styles.total}>
+            Total Pago no Mês (Antiga API): {(totalPagoNoMesAntigaAPI - totalAnuladoNoMesAntigaAPI).toLocaleString("pt-BR", {
+              style: "currency",
+              currency: "BRL",
+            })}
+          </Text>
+
+
+        </>
       )}
       <StatusBar style="auto" />
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: "#fff",
     alignItems: "center",
-    justifyContent: "center",
+    justifyContent: "flex-start",
     padding: 20,
+    marginTop: 80,
   },
   input: {
     height: 40,
@@ -101,5 +197,11 @@ const styles = StyleSheet.create({
   error: {
     color: "red",
     marginVertical: 10,
+  },
+  total: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginVertical: 15,
+    color: "#333",
   },
 });
